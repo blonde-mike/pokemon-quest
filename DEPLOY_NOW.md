@@ -90,9 +90,17 @@ Still on import screen:
 
 ## 🎮 Your Live URLs
 
-- **Production**: `https://pokemon-quest-xxxxx.vercel.app`
+- **Production**: https://pokemon-quest-opo7sxgpc-raven-stack.vercel.app (Vercel team `raven-stack`)
 - **GitHub**: https://github.com/blonde-mike/pokemon-quest
 - **Supabase**: `https://xxxxx.supabase.co`
+
+Note: `pokemon-quest.vercel.app` (no team suffix) belongs to a different project. Do not use it.
+
+### Make it playable (one-time, dashboard only)
+
+1. **Supabase, SQL Editor**: run `supabase/migrations/0001_seed_policies_rpc.sql`. Without it the lab is empty and starter selection fails.
+2. **Supabase, Authentication, Providers, Email**: turn off "Confirm email". Otherwise add `https://<your-domain>/auth/callback` under URL Configuration, Redirect URLs.
+3. **Vercel, Settings, Deployment Protection**: set Vercel Authentication to "Only Preview Deployments". Right now production redirects visitors to a Vercel SSO login.
 
 ## 🔧 Troubleshooting
 

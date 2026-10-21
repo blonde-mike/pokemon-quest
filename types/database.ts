@@ -50,7 +50,7 @@ export type Battle = {
   money_gained: number
   started_at: string
   ended_at: string | null
-  battle_log: any
+  battle_log: unknown
 }
 
 export type BattleParticipant = {
@@ -136,6 +136,12 @@ export type Database = {
         Row: UserInventory
         Insert: Omit<UserInventory, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<UserInventory, 'id' | 'created_at'>>
+      }
+    }
+    Functions: {
+      create_trainer: {
+        Args: { p_trainer_name: string; p_starter_species_id: number }
+        Returns: string
       }
     }
   }

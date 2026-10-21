@@ -1,41 +1,64 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { PokemonWithSpecies } from '@/types/game'
+import type { Profile, Trade } from '@/types/database'
+
+type TradeRow = Trade & {
+  sender: Pick<Profile, 'trainer_name'> | null
+  receiver: Pick<Profile, 'trainer_name'> | null
+  sender_pokemon: PokemonWithSpecies | null
+  receiver_pokemon: PokemonWithSpecies | null
+}
+
+function typeEmoji(type: string): string {
+  if (type === 'Fire') return '🔥'
+  if (type === 'Water') return '💧'
+  if (type === 'Grass') return '🌿'
+  return '⭐'
+}
+
+function describe(p: PokemonWithSpecies | null): { name: string; level: string } {
+  if (!p) return { name: '???', level: 'Hidden' }
+  return { name: p.nickname || p.species.name, level: `Lv. ${p.level}` }
+}
 
 export default function TradePage() {
   const [loading, setLoading] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
   const [myPokemon, setMyPokemon] = useState<PokemonWithSpecies[]>([])
   const [selectedPokemon, setSelectedPokemon] = useState<string | null>(null)
   const [trainerSearch, setTrainerSearch] = useState('')
-  const [searchResults, setSearchResults] = useState<any[]>([])
-  const [pendingTrades, setPendingTrades] = useState<any[]>([])
+  const [searchResults, setSearchResults] = useState<Profile[]>([])
+  const [pendingTrades, setPendingTrades] = useState<TradeRow[]>([])
+  const [notice, setNotice] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
-  useEffect(() => {
-    loadData()
-  }, [])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return router.push('/auth/login')
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/auth/login')
+        return
+      }
+      setUserId(user.id)
 
-      // Load my Pokemon
       const { data: pokemon } = await supabase
         .from('user_pokemon')
         .select('*, species:pokemon_species(*)')
         .eq('user_id', user.id)
 
-      setMyPokemon(pokemon || [])
+      setMyPokemon((pokemon ?? []) as PokemonWithSpecies[])
 
-      // Load pending trades
       const { data: trades } = await supabase
         .from('trades')
-        .select(`
+        .select(
+          `
           *,
           sender:profiles!trades_sender_id_fkey(trainer_name),
           receiver:profiles!trades_receiver_id_fkey(trainer_name),
@@ -47,57 +70,58 @@ export default function TradePage() {
             *,
             species:pokemon_species(*)
           )
-        `)
+        `
+        )
         .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
         .eq('status', 'pending')
 
-      setPendingTrades(trades || [])
+      setPendingTrades((trades ?? []) as TradeRow[])
       setLoading(false)
     } catch (error) {
       console.error('Load error:', error)
+      setLoading(false)
     }
-  }
+  }, [supabase, router])
+
+  useEffect(() => {
+    void Promise.resolve().then(loadData)
+  }, [loadData])
 
   const searchTrainers = async () => {
-    if (!trainerSearch.trim()) return
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!trainerSearch.trim() || !userId) return
 
     const { data } = await supabase
       .from('profiles')
       .select('*')
       .ilike('trainer_name', `%${trainerSearch}%`)
-      .neq('id', user.id)
+      .neq('id', userId)
       .limit(5)
 
-    setSearchResults(data || [])
+    setSearchResults((data ?? []) as Profile[])
   }
 
   const createTradeOffer = async (receiverId: string) => {
-    if (!selectedPokemon) {
-      alert('Please select a Pokemon to trade!')
+    if (!selectedPokemon || !userId) {
+      setNotice('Select one of your Pokemon first.')
       return
     }
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    // Get receiver's first Pokemon (simplified, in real app they'd select)
+    // Under the current RLS policies other trainers' Pokemon are not readable,
+    // so this lookup returns nothing. Trading needs a server-side RPC.
     const { data: receiverPokemon } = await supabase
       .from('user_pokemon')
       .select('id')
       .eq('user_id', receiverId)
       .limit(1)
-      .single()
+      .maybeSingle()
 
     if (!receiverPokemon) {
-      alert('Trainer has no Pokemon!')
+      setNotice('That trainer has no Pokemon available to trade.')
       return
     }
 
     const { error } = await supabase.from('trades').insert({
-      sender_id: user.id,
+      sender_id: userId,
       receiver_id: receiverId,
       sender_pokemon_id: selectedPokemon,
       receiver_pokemon_id: receiverPokemon.id,
@@ -105,27 +129,22 @@ export default function TradePage() {
     })
 
     if (error) {
-      alert('Trade offer failed: ' + error.message)
+      setNotice(`Trade offer failed: ${error.message}`)
     } else {
-      alert('Trade offer sent!')
+      setNotice('Trade offer sent!')
       setSelectedPokemon(null)
       setSearchResults([])
       setTrainerSearch('')
-      loadData()
+      void loadData()
     }
   }
 
-  const acceptTrade = async (trade: any) => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    // Update trade status
+  const acceptTrade = async (trade: TradeRow) => {
     await supabase
       .from('trades')
       .update({ status: 'accepted', completed_at: new Date().toISOString() })
       .eq('id', trade.id)
 
-    // Swap Pokemon ownership
     await supabase
       .from('user_pokemon')
       .update({ user_id: trade.receiver_id, is_in_party: false })
@@ -136,8 +155,8 @@ export default function TradePage() {
       .update({ user_id: trade.sender_id, is_in_party: false })
       .eq('id', trade.receiver_pokemon_id)
 
-    alert('Trade completed!')
-    loadData()
+    setNotice('Trade completed!')
+    void loadData()
   }
 
   const rejectTrade = async (tradeId: string) => {
@@ -146,7 +165,7 @@ export default function TradePage() {
       .update({ status: 'rejected', completed_at: new Date().toISOString() })
       .eq('id', tradeId)
 
-    loadData()
+    void loadData()
   }
 
   if (loading) {
@@ -161,9 +180,7 @@ export default function TradePage() {
     <div className="min-h-screen bg-gradient-to-b from-purple-900 to-purple-600 p-4">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-4xl font-bold text-white" style={{ fontFamily: 'monospace' }}>
-            TRADING CENTER
-          </h1>
+          <h1 className="text-4xl font-bold text-white font-pixel">TRADING CENTER</h1>
           <button
             onClick={() => router.push('/game')}
             className="bg-gray-700 hover:bg-gray-800 text-white font-bold py-2 px-4 rounded"
@@ -172,46 +189,49 @@ export default function TradePage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-6">
-          {/* Create Trade */}
-          <div className="bg-white rounded-lg border-4 border-yellow-400 p-6">
+        {notice && (
+          <div className="mb-4 rounded border-2 border-yellow-400 bg-yellow-50 px-4 py-3 text-gray-800">
+            {notice}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white rounded-lg border-4 border-yellow-400 p-6 text-gray-900">
             <h2 className="text-2xl font-bold mb-4">Create Trade Offer</h2>
 
             <div className="mb-4">
-              <label className="block font-bold mb-2">Select Your Pokemon:</label>
+              <p className="block font-bold mb-2">Select Your Pokemon:</p>
               <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
                 {myPokemon.map((pokemon) => (
-                  <div
+                  <button
+                    type="button"
                     key={pokemon.id}
                     onClick={() => setSelectedPokemon(pokemon.id)}
-                    className={`p-3 border-2 rounded cursor-pointer transition-all ${
+                    className={`p-3 border-2 rounded text-left transition-all ${
                       selectedPokemon === pokemon.id
                         ? 'border-yellow-400 bg-yellow-50 scale-105'
                         : 'border-gray-300 hover:border-gray-400'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-2xl">
-                        {pokemon.species.type_primary === 'Fire' ? '🔥' :
-                         pokemon.species.type_primary === 'Water' ? '💧' :
-                         pokemon.species.type_primary === 'Grass' ? '🌿' : '⭐'}
-                      </span>
+                      <span className="text-2xl">{typeEmoji(pokemon.species.type_primary)}</span>
                       <div>
-                        <div className="font-bold text-sm">
-                          {pokemon.nickname || pokemon.species.name}
-                        </div>
+                        <div className="font-bold text-sm">{pokemon.nickname || pokemon.species.name}</div>
                         <div className="text-xs text-gray-600">Lv. {pokemon.level}</div>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
 
             <div className="mb-4">
-              <label className="block font-bold mb-2">Find Trainer:</label>
+              <label htmlFor="trainerSearch" className="block font-bold mb-2">
+                Find Trainer:
+              </label>
               <div className="flex gap-2">
                 <input
+                  id="trainerSearch"
                   type="text"
                   value={trainerSearch}
                   onChange={(e) => setTrainerSearch(e.target.value)}
@@ -219,7 +239,7 @@ export default function TradePage() {
                   className="flex-1 px-3 py-2 border-2 border-gray-300 rounded focus:outline-none focus:border-purple-500"
                 />
                 <button
-                  onClick={searchTrainers}
+                  onClick={() => void searchTrainers()}
                   className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2 rounded"
                 >
                   Search
@@ -229,7 +249,7 @@ export default function TradePage() {
 
             {searchResults.length > 0 && (
               <div className="space-y-2">
-                <label className="block font-bold">Results:</label>
+                <p className="block font-bold">Results:</p>
                 {searchResults.map((trainer) => (
                   <div key={trainer.id} className="flex justify-between items-center bg-gray-100 p-3 rounded">
                     <div>
@@ -237,7 +257,7 @@ export default function TradePage() {
                       <div className="text-sm text-gray-600">🏆 {trainer.badges} badges</div>
                     </div>
                     <button
-                      onClick={() => createTradeOffer(trainer.id)}
+                      onClick={() => void createTradeOffer(trainer.id)}
                       disabled={!selectedPokemon}
                       className="bg-green-600 hover:bg-green-700 text-white font-bold px-3 py-1 rounded text-sm disabled:opacity-50"
                     >
@@ -249,8 +269,7 @@ export default function TradePage() {
             )}
           </div>
 
-          {/* Pending Trades */}
-          <div className="bg-white rounded-lg border-4 border-yellow-400 p-6">
+          <div className="bg-white rounded-lg border-4 border-yellow-400 p-6 text-gray-900">
             <h2 className="text-2xl font-bold mb-4">Pending Trades</h2>
 
             {pendingTrades.length === 0 ? (
@@ -258,39 +277,42 @@ export default function TradePage() {
             ) : (
               <div className="space-y-4 max-h-96 overflow-y-auto">
                 {pendingTrades.map((trade) => {
-                  const { data: { user } } = supabase.auth.getUser() as any
-                  const isReceiver = trade.receiver_id === user?.id
-                  const isOffer = trade.sender_id === user?.id
+                  const isReceiver = trade.receiver_id === userId
+                  const isOffer = trade.sender_id === userId
+                  const offering = describe(trade.sender_pokemon)
+                  const wanted = describe(trade.receiver_pokemon)
 
                   return (
                     <div key={trade.id} className="bg-gray-100 p-4 rounded border-2 border-gray-300">
                       <div className="font-bold mb-2">
-                        {isOffer ? `To: ${trade.receiver.trainer_name}` : `From: ${trade.sender.trainer_name}`}
+                        {isOffer
+                          ? `To: ${trade.receiver?.trainer_name ?? '???'}`
+                          : `From: ${trade.sender?.trainer_name ?? '???'}`}
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 mb-3">
                         <div className="text-center p-2 bg-red-100 rounded">
                           <div className="text-xs text-gray-600">Offering</div>
-                          <div className="font-bold">{trade.sender_pokemon.species.name}</div>
-                          <div className="text-sm">Lv. {trade.sender_pokemon.level}</div>
+                          <div className="font-bold">{offering.name}</div>
+                          <div className="text-sm">{offering.level}</div>
                         </div>
                         <div className="text-center p-2 bg-blue-100 rounded">
                           <div className="text-xs text-gray-600">For</div>
-                          <div className="font-bold">{trade.receiver_pokemon.species.name}</div>
-                          <div className="text-sm">Lv. {trade.receiver_pokemon.level}</div>
+                          <div className="font-bold">{wanted.name}</div>
+                          <div className="text-sm">{wanted.level}</div>
                         </div>
                       </div>
 
                       {isReceiver && (
                         <div className="flex gap-2">
                           <button
-                            onClick={() => acceptTrade(trade)}
+                            onClick={() => void acceptTrade(trade)}
                             className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded"
                           >
                             Accept
                           </button>
                           <button
-                            onClick={() => rejectTrade(trade.id)}
+                            onClick={() => void rejectTrade(trade.id)}
                             className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded"
                           >
                             Reject
@@ -299,9 +321,7 @@ export default function TradePage() {
                       )}
 
                       {isOffer && (
-                        <div className="text-center text-gray-600 text-sm">
-                          Waiting for response...
-                        </div>
+                        <div className="text-center text-gray-600 text-sm">Waiting for response...</div>
                       )}
                     </div>
                   )

@@ -1,62 +1,37 @@
 import Link from 'next/link'
+import PixelSprite from '@/components/game/PixelSprite'
+import { AQUAPUP, FLAMELING, LEAFLING } from '@/lib/pixel/sprites'
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-900 via-purple-800 to-pink-700 flex items-center justify-center p-4">
-      <div className="text-center max-w-4xl">
-        <h1
-          className="text-7xl font-bold text-white mb-4 drop-shadow-lg animate-pulse"
-          style={{ fontFamily: 'monospace' }}
-        >
-          POKEMON QUEST
-        </h1>
+    <main className="flex min-h-screen flex-col items-center justify-center bg-[#0f0f1a] p-6 text-center">
+      <p className="font-pixel mb-6 text-[10px] tracking-widest text-[#ffd23f] sm:text-xs">
+        CATCH · BATTLE · TRADE · EVOLVE
+      </p>
 
-        <p className="text-2xl text-yellow-300 mb-8 font-bold" style={{ fontFamily: 'monospace' }}>
-          ⚡ CATCH · BATTLE · TRADE · EVOLVE ⚡
-        </p>
+      <h1 className="font-pixel text-3xl leading-[1.4] text-[#f8f8f8] drop-shadow-[6px_6px_0_#d7263d] sm:text-5xl">
+        POKEMON
+        <br />
+        QUEST
+      </h1>
 
-        <div className="bg-white bg-opacity-90 rounded-lg border-4 border-yellow-400 p-8 mb-8">
-          <h2 className="text-3xl font-bold mb-4 text-gray-800">Welcome, Trainer!</h2>
-          <p className="text-lg text-gray-700 mb-6">
-            Embark on an epic adventure in the world of Pokemon! Battle wild Pokemon,
-            trade with other trainers, level up your team, and become the ultimate Pokemon Master!
-          </p>
-
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="bg-red-100 p-4 rounded-lg border-2 border-red-400">
-              <div className="text-4xl mb-2">⚔️</div>
-              <h3 className="font-bold text-lg">Battle</h3>
-              <p className="text-sm text-gray-600">Fight wild Pokemon and earn XP</p>
-            </div>
-            <div className="bg-blue-100 p-4 rounded-lg border-2 border-blue-400">
-              <div className="text-4xl mb-2">🔄</div>
-              <h3 className="font-bold text-lg">Trade</h3>
-              <p className="text-sm text-gray-600">Exchange Pokemon with trainers</p>
-            </div>
-            <div className="bg-green-100 p-4 rounded-lg border-2 border-green-400">
-              <div className="text-4xl mb-2">📈</div>
-              <h3 className="font-bold text-lg">Evolve</h3>
-              <p className="text-sm text-gray-600">Level up and evolve your team</p>
-            </div>
-          </div>
-
-          <div className="flex gap-4 justify-center">
-            <Link
-              href="/auth/login"
-              className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-lg border-4 border-green-800 text-xl transition-transform hover:scale-105"
-            >
-              START ADVENTURE
-            </Link>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-4 gap-4 text-6xl animate-bounce">
-          <div>🔥</div>
-          <div>💧</div>
-          <div>🌿</div>
-          <div>⚡</div>
-        </div>
+      <div className="my-10 flex items-end gap-8 sm:gap-14">
+        <PixelSprite sprite={FLAMELING} scale={4} className="pixel-bob" title="Flameling" />
+        <PixelSprite sprite={AQUAPUP} scale={4} className="pixel-bob [animation-delay:0.33s]" title="Aquapup" />
+        <PixelSprite sprite={LEAFLING} scale={4} className="pixel-bob [animation-delay:0.66s]" title="Leafling" />
       </div>
-    </div>
+
+      <Link
+        href="/auth/login"
+        className="font-pixel pixel-blink text-sm text-[#f8f8f8] hover:text-[#ffd23f] sm:text-base"
+      >
+        PRESS START
+      </Link>
+
+      <p className="font-pixel mt-16 max-w-md text-[8px] leading-5 text-[#9a9aa8]">
+        Fan project for learning. Not affiliated with Nintendo, Game Freak, or The Pokemon Company.
+        All sprites are original pixel art.
+      </p>
+    </main>
   )
 }

@@ -2,8 +2,10 @@
 
 A nostalgic Pokemon-like game built with Next.js, Supabase, and deployed on Vercel. Battle wild Pokemon, trade with other trainers, level up your team, and relive the classic Pokemon experience!
 
+**Live:** https://pokemon-quest-opo7sxgpc-raven-stack.vercel.app (Vercel team `raven-stack`, project `pokemon-quest`)
+
 ![Pokemon Quest](https://img.shields.io/badge/Status-Live-brightgreen)
-![Next.js](https://img.shields.io/badge/Next.js-15-black)
+![Next.js](https://img.shields.io/badge/Next.js-16-black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
 ![Supabase](https://img.shields.io/badge/Supabase-Enabled-green)
 
@@ -70,8 +72,10 @@ npm install
 ### 2. Set Up Supabase
 
 1. Create a new Supabase project at [supabase.com](https://supabase.com)
-2. Run the SQL from `DATABASE_SCHEMA.md` in the Supabase SQL Editor
-3. Copy your project URL and anon key
+2. Run the SQL from `DATABASE_SCHEMA.md` in the Supabase SQL Editor (tables, RLS)
+3. Run `supabase/migrations/0001_seed_policies_rpc.sql` in the SQL Editor (seed data, public-read policies, the `create_trainer` RPC). Safe to re-run.
+4. Authentication, Providers, Email: turn off "Confirm email" so new players drop straight into the intro. If you keep it on, add `<your-domain>/auth/callback` under Authentication, URL Configuration, Redirect URLs.
+5. Copy your project URL and anon key
 
 ### 3. Configure Environment
 
@@ -120,9 +124,24 @@ vercel
 
 In Vercel Dashboard:
 1. Go to Project Settings → Environment Variables
-2. Add:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+2. Add either pair (the app accepts both):
+   - `SUPABASE_URL` + `SUPABASE_ANON_KEY` (what the Vercel Supabase integration sets)
+   - `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+### Make the deployment public
+
+Vercel Deployment Protection is on by default for team projects, which sends every visitor to a Vercel SSO login. For a game people should be able to play:
+1. Project Settings → Deployment Protection
+2. Set Vercel Authentication to "Only Preview Deployments" (or Disabled)
+
+### One-time launch checklist
+
+- [ ] `DATABASE_SCHEMA.md` run in Supabase
+- [ ] `supabase/migrations/0001_seed_policies_rpc.sql` run in Supabase
+- [ ] Email confirmation off, or `/auth/callback` added to Supabase Redirect URLs
+- [ ] Vercel env vars set
+- [ ] Deployment Protection relaxed for Production
+- [ ] Sign up on the live site, finish the intro, land on `/game`
 
 ## 🎮 How to Play
 
@@ -185,20 +204,26 @@ EXP to Next Level = 100 × 1.1^(Level - 1)
 pokemon-game/
 ├── app/
 │   ├── auth/
-│   │   ├── login/          # Login/signup page
-│   │   └── setup/          # Trainer setup (choose starter)
+│   │   ├── login/          # Sign in / sign up (pixel-styled form)
+│   │   ├── callback/       # Email-confirmation code exchange
+│   │   └── setup/          # The in-game intro: name entry + starter choice
 │   ├── game/               # Main game dashboard
 │   ├── battle/             # Battle interface
 │   ├── trade/              # Trading interface
-│   └── page.tsx            # Landing page
+│   └── page.tsx            # Title screen
+├── components/
+│   ├── auth/LoginForm.tsx
+│   └── game/               # GameScreen (240x160 scaled canvas, touch pad),
+│                           # input (keyboard + gamepad buttons), DialogBox
+│                           # (typewriter), NameEntry, IntroGame scenes, PixelSprite
 ├── lib/
-│   ├── supabase/           # Supabase client/server setup
+│   ├── pixel/sprites.ts    # Original pixel art as character maps + palette
+│   ├── supabase/           # Browser/server clients, env resolution
 │   └── battle.ts           # Battle mechanics & calculations
-├── types/
-│   ├── database.ts         # Database type definitions
-│   └── game.ts             # Game logic types
-├── components/             # Reusable UI components
-└── DATABASE_SCHEMA.md      # Complete database schema
+├── supabase/migrations/    # Seed data, policies, create_trainer RPC
+├── types/                  # Database and game types
+├── proxy.ts                # Auth routing (Next 16 proxy, was middleware)
+└── DATABASE_SCHEMA.md      # Table definitions and base RLS
 ```
 
 ## 🔒 Security & RLS

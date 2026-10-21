@@ -1,4 +1,30 @@
 import { PokemonWithSpecies } from '@/types/game'
+import type { PokemonSpecies } from '@/types/database'
+
+/** Build a transient wild Pokemon (level 3 to 7) from a random species. */
+export function createWildPokemon(speciesList: PokemonSpecies[]): PokemonWithSpecies {
+  const species = speciesList[Math.floor(Math.random() * speciesList.length)]
+  const level = 3 + Math.floor(Math.random() * 5)
+  const now = new Date().toISOString()
+  return {
+    id: 'wild',
+    user_id: 'wild',
+    species_id: species.id,
+    nickname: null,
+    level,
+    current_hp: species.base_hp,
+    max_hp: species.base_hp,
+    attack: species.base_attack,
+    defense: species.base_defense,
+    speed: species.base_speed,
+    experience: 0,
+    experience_to_next_level: 100,
+    is_in_party: false,
+    created_at: now,
+    updated_at: now,
+    species,
+  }
+}
 
 export const TYPE_CHART: { [key: string]: { strong: string[], weak: string[], immune: string[] } } = {
   Fire: { strong: ['Grass'], weak: ['Water', 'Rock'], immune: [] },
@@ -25,7 +51,7 @@ export function calculateDamage(
   const defenderType2 = defender.species.type_secondary
 
   // Base damage calculation
-  let baseDamage = Math.floor(
+  const baseDamage = Math.floor(
     ((2 * attacker.level / 5 + 2) * attacker.attack * 60) /
     (defender.defense * 50) + 2
   )
@@ -89,7 +115,6 @@ export function checkLevelUp(
 ): { leveledUp: boolean; newLevel: number; newExpToNext: number } {
   if (currentExp >= expToNext) {
     const newLevel = level + 1
-    const remainingExp = currentExp - expToNext
     const newExpToNext = Math.floor(100 * Math.pow(1.1, newLevel - 1))
 
     return {
