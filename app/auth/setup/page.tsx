@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -9,8 +9,22 @@ export default function SetupPage() {
   const [starter, setStarter] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const router = useRouter()
   const supabase = createClient()
+
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        router.push('/auth/login')
+      } else {
+        setCheckingAuth(false)
+      }
+    }
+    void checkAuth()
+  }, [router, supabase])
 
   const starters = [
     { id: 1, name: 'Flameling', type: 'Fire', description: 'A fiery lizard Pokemon' },
@@ -91,6 +105,14 @@ export default function SetupPage() {
       setError(err.message)
       setLoading(false)
     }
+  }
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-green-900 via-green-700 to-green-500 flex items-center justify-center">
+        <div className="text-white text-2xl">Checking authentication...</div>
+      </div>
+    )
   }
 
   return (

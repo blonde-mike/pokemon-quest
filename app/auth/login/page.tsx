@@ -17,16 +17,25 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/setup`,
+      },
     })
 
     if (error) {
       setError(error.message)
       setLoading(false)
-    } else {
+    } else if (data.session) {
+      // Session created immediately (email confirmation disabled)
       router.push('/auth/setup')
+      router.refresh()
+    } else {
+      // Email confirmation required
+      setError('Please check your email to confirm your account, then sign in.')
+      setLoading(false)
     }
   }
 
