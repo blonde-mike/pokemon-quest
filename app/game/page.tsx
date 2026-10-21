@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 
+export const instant = false
+
 export default async function GamePage() {
   const supabase = await createClient()
 
